@@ -1,14 +1,10 @@
 import * as Yup from "yup";
-import Product from "./../models/Product.js";
-import Category from "./../models/Category.js";
+import Category from "../models/Category.js";
 
-class ProductController {
+class CategoryController {
   async store(request, response) {
     const schema = Yup.object({
       name: Yup.string().required(),
-      price: Yup.number().required(),
-      category_id: Yup.number().required(),
-      offer: Yup.boolean(),
     });
 
     try {
@@ -17,26 +13,28 @@ class ProductController {
       return response.status(400).json({ error: err.errors });
     }
 
-    const { name, price, category_id, offer } = request.body;
+    const { name } = request.body;
     const { filename } = request.file;
 
-    const newProduct = await Product.create({
-      name,
-      price,
-      category_id,
-      path: filename,
-      offer,
+    const existingCategory = await Category.findOne({
+      where: { name },
     });
 
-    return response.status(201).json(newProduct);
+    if (existingCategory) {
+      return response.status(400).json({ error: "Category already exists!" });
+    }
+
+    const newCategory = await Category.create({
+      name,
+      path: filename,
+    });
+
+    return response.status(201).json(newCategory);
   }
 
   async update(request, response) {
     const schema = Yup.object({
       name: Yup.string(),
-      price: Yup.number(),
-      category_id: Yup.number(),
-      offer: Yup.boolean(),
     });
 
     try {
@@ -45,7 +43,7 @@ class ProductController {
       return response.status(400).json({ error: err.errors });
     }
 
-    const { name, price, category_id, offer } = request.body;
+    const { name } = request.body;
     const { id } = request.params;
 
     let path;
@@ -54,13 +52,18 @@ class ProductController {
       path = filename;
     }
 
-    await Product.update(
+    const existingCategory = await Category.findOne({
+      where: { name },
+    });
+
+    if (existingCategory) {
+      return response.status(400).json({ error: "Category already exists!" });
+    }
+
+    await Category.update(
       {
         name,
-        price,
-        category_id,
         path,
-        offer,
       },
       {
         where: {
@@ -69,20 +72,14 @@ class ProductController {
       },
     );
 
-    return response.status(200).json();
+    return response.status(201).json();
   }
 
   async index(_request, response) {
-    const products = await Product.findAll({
-      include: {
-        model: Category,
-        as: "category",
-        attributes: ["id", "name"],
-      },
-    });
+    const categories = await Category.findAll();
 
-    return response.status(200).json(products);
+    return response.status(200).json(categories);
   }
 }
 
-export default new ProductController();
+export default new CategoryController();
