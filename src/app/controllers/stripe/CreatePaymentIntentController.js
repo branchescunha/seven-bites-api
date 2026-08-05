@@ -1,8 +1,14 @@
-import Stripe from "stripe";
-import * as Yup from "yup";
-import "dotenv/config";
+import Stripe from 'stripe';
+import * as Yup from 'yup';
+import 'dotenv/config';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const getStripeClient = () => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return null;
+  }
+
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
+};
 
 const calculateOrderAmount = (items) => {
   const total = items.reduce((acc, current) => {
@@ -34,11 +40,19 @@ class CreatePaymentIntentController {
 
     const { products } = request.body;
 
+    const stripe = getStripeClient();
+
+    if (!stripe) {
+      return response
+        .status(503)
+        .json({ error: 'Payment service is not configured.' });
+    }
+
     const amount = calculateOrderAmount(products);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
-      currency: "brl",
+      currency: 'brl',
       automatic_payment_methods: {
         enabled: true,
       },

@@ -1,7 +1,15 @@
-import * as Yup from "yup";
-import Product from "../models/Product.js";
-import Category from "../models/Category.js";
-import Order from "../schemas/Order.js";
+import * as Yup from 'yup';
+import Category from '../models/Category.js';
+import Product from '../models/Product.js';
+import Order from '../schemas/Order.js';
+
+const ORDER_STATUS = {
+  pending: 'Pedido Realizado',
+  legacyPending: 'Pedido realizado',
+};
+
+const normalizeOrderStatus = (status) =>
+  status === ORDER_STATUS.legacyPending ? ORDER_STATUS.pending : status;
 
 class OrderController {
   async store(request, response) {
@@ -33,8 +41,8 @@ class OrderController {
       },
       include: {
         model: Category,
-        as: "category",
-        attributes: ["name"],
+        as: 'category',
+        attributes: ['name'],
       },
     });
 
@@ -59,7 +67,7 @@ class OrderController {
         name: userName,
       },
       products: mapedProducts,
-      status: "Pedido realizado",
+      status: ORDER_STATUS.pending,
     };
 
     const newOrder = await Order.create(order);
@@ -82,12 +90,15 @@ class OrderController {
     const { id } = request.params;
 
     try {
-      await Order.updateOne({ _id: id }, { status });
+      await Order.updateOne(
+        { _id: id },
+        { status: normalizeOrderStatus(status) },
+      );
     } catch (err) {
       return response.status(400).json({ error: err.message });
     }
 
-    return response.status(200).json("Status update sucessfully");
+    return response.status(200).json('Status update sucessfully');
   }
 
   async index(_request, response) {
