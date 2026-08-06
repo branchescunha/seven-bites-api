@@ -26,6 +26,22 @@ class Database {
   mongo() {
     this.mongooseConnection = mongoose.connect(env.mongoUrl);
   }
+
+  async checkConnections() {
+    const checks = {
+      mongo: mongoose.connection.readyState === 1 ? 'ok' : 'unavailable',
+      postgres: 'unavailable',
+    };
+
+    try {
+      await this.connection.authenticate();
+      checks.postgres = 'ok';
+    } catch (_error) {
+      checks.postgres = 'unavailable';
+    }
+
+    return checks;
+  }
 }
 
 export default new Database();

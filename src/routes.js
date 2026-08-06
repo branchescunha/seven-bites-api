@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import CategoryController from './app/controllers/CategoryController.js';
+import HealthController from './app/controllers/HealthController.js';
 import OrderController from './app/controllers/OrderController.js';
 import ProductController from './app/controllers/ProductController.js';
 import SessionController from './app/controllers/SessionController.js';
@@ -8,14 +9,48 @@ import CreatePaymentIntentController from './app/controllers/stripe/CreatePaymen
 import UserController from './app/controllers/UserController.js';
 import adminMiddleware from './app/middlewares/admin.js';
 import authMiddleware from './app/middlewares/auth.js';
+import { rateLimit } from './app/middlewares/rateLimit.js';
+import { env } from './config/env.js';
 import multerConfig from './config/multer.cjs';
+import { openApiDocument } from './docs/openapi.js';
 
 const routes = new Router();
 
 const upload = multer(multerConfig);
+const authRateLimit = rateLimit({
+  keyPrefix: 'auth',
+  limit: env.rateLimitAuthMax,
+  windowMs: env.rateLimitWindowMs,
+});
+const paymentRateLimit = rateLimit({
+  keyPrefix: 'payment-intent',
+  limit: env.rateLimitPaymentMax,
+  windowMs: env.rateLimitWindowMs,
+});
 
-routes.post('/users', UserController.store);
-routes.post('/sessions', SessionController.store);
+routes.get('/health', HealthController.show);
+routes.get('/ready', HealthController.ready);
+routes.get('/openapi.json', (_request, response) =>
+  response.status(200).json(openApiDocument),
+);
+routes.get('/docs', (_request, response) =>
+  response.type('html').send(`<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>Seven Bites API Docs</title>
+  </head>
+  <body>
+    <main>
+      <h1>Seven Bites API Docs</h1>
+      <p>OpenAPI 3 document: <a href="/openapi.json">/openapi.json</a></p>
+    </main>
+  </body>
+</html>`),
+);
+
+routes.post('/users', authRateLimit, UserController.store);
+routes.post('/sessions', authRateLimit, SessionController.store);
 
 routes.get('/products', ProductController.index);
 routes.get('/categories', CategoryController.index);
@@ -54,6 +89,10 @@ routes.post('/orders', OrderController.store);
 routes.get('/orders', adminMiddleware, OrderController.index);
 routes.put('/orders/:id', adminMiddleware, OrderController.update);
 
-routes.post('/create-payment-intent', CreatePaymentIntentController.store);
+routes.post(
+  '/create-payment-intent',
+  paymentRateLimit,
+  CreatePaymentIntentController.store,
+);
 
 export default routes;

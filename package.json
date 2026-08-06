@@ -5,7 +5,11 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "start": "node src/server.js",
+    "test": "node --test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "npm test && npm run lint"
   },
   "keywords": [],
   "author": "",

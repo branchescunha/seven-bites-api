@@ -22,6 +22,9 @@ const {
   calculateProductsAmount,
   normalizeCartProducts,
 } = await import('../src/app/services/cartValidation.js');
+const { buildHealthPayload, buildReadyPayload } = await import(
+  '../src/app/services/health.js'
+);
 const { assertPaymentIntentCanCreateOrder } = await import(
   '../src/app/services/paymentValidation.js'
 );
@@ -33,6 +36,18 @@ const { handleOrderPersistenceError, sendPaymentIntentRetrieveError } =
 const { sendStripeGatewayError } = await import(
   '../src/app/controllers/stripe/CreatePaymentIntentController.js'
 );
+const { buildCorsOptions } = await import(
+  '../src/app/middlewares/corsOptions.js'
+);
+const { errorHandler } = await import('../src/app/middlewares/errorHandler.js');
+const { rateLimit } = await import('../src/app/middlewares/rateLimit.js');
+const { requestContext } = await import(
+  '../src/app/middlewares/requestContext.js'
+);
+const { publicAssetHeaders, securityHeaders } = await import(
+  '../src/app/middlewares/securityHeaders.js'
+);
+const { openApiDocument } = await import('../src/docs/openapi.js');
 
 const createResponse = () => {
   const response = {
@@ -40,6 +55,10 @@ const createResponse = () => {
     statusCode: null,
     json(payload) {
       this.body = payload;
+      return this;
+    },
+    setHeader(name, value) {
+      this.headers = { ...(this.headers || {}), [name]: value };
       return this;
     },
     status(statusCode) {
@@ -50,6 +69,14 @@ const createResponse = () => {
 
   return response;
 };
+
+const createRequest = (overrides = {}) => ({
+  get: () => undefined,
+  ip: '127.0.0.1',
+  method: 'GET',
+  originalUrl: '/test',
+  ...overrides,
+});
 
 test('public user payload always creates a non-admin user', () => {
   const payload = buildPublicUserPayload({
@@ -366,4 +393,204 @@ test('multer accepts only configured image types and size', () => {
       assert.equal(error.statusCode, 400);
     },
   );
+});
+
+test('health payload exposes only safe process data', () => {
+  const payload = buildHealthPayload();
+
+  assert.equal(payload.status, 'ok');
+  assert.equal(payload.service, 'seven-bites-api');
+  assert.equal(typeof payload.timestamp, 'string');
+  assert.equal(typeof payload.uptime, 'number');
+  assert.equal('version' in payload, false);
+});
+
+test('readiness payload returns 200 only when dependencies are available', () => {
+  const ready = buildReadyPayload({ mongo: 'ok', postgres: 'ok' });
+  const unavailable = buildReadyPayload({
+    mongo: 'ok',
+    postgres: 'unavailable',
+  });
+
+  assert.equal(ready.statusCode, 200);
+  assert.equal(ready.body.status, 'ready');
+  assert.equal(unavailable.statusCode, 503);
+  assert.equal(unavailable.body.status, 'unavailable');
+});
+
+test('request context generates and returns a safe request id', () => {
+  const request = createRequest({
+    get: () => 'unsafe request id with spaces',
+  });
+  const response = createResponse();
+  let nextWasCalled = false;
+
+  response.on = (event, callback) => {
+    assert.equal(event, 'finish');
+    response.finishCallback = callback;
+  };
+
+  requestContext(request, response, () => {
+    nextWasCalled = true;
+  });
+
+  assert.equal(nextWasCalled, true);
+  assert.match(request.id, /^[0-9a-f-]{36}$/);
+  assert.equal(response.headers['x-request-id'], request.id);
+});
+
+test('rate limit returns 429 after the configured limit', () => {
+  const limiter = rateLimit({
+    keyPrefix: `test-${Date.now()}`,
+    limit: 1,
+    windowMs: 60_000,
+  });
+  const firstResponse = createResponse();
+  const secondResponse = createResponse();
+  let firstNext = false;
+
+  limiter(createRequest(), firstResponse, () => {
+    firstNext = true;
+  });
+  limiter(createRequest(), secondResponse, () => {});
+
+  assert.equal(firstNext, true);
+  assert.equal(secondResponse.statusCode, 429);
+  assert.equal(
+    secondResponse.body.error,
+    'Too many requests. Try again later.',
+  );
+});
+
+test('global error handler sanitizes unexpected errors', () => {
+  const response = createResponse();
+  const originalConsoleError = console.error;
+
+  console.error = () => {};
+
+  errorHandler(
+    new Error('database password leaked in stack'),
+    createRequest({ id: 'request-id' }),
+    response,
+    () => {},
+  );
+
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.body, {
+    error: 'Internal server error.',
+    requestId: 'request-id',
+  });
+
+  console.error = originalConsoleError;
+});
+
+test('json security headers do not add permissive cross-origin resource policy', () => {
+  const request = createRequest();
+  const response = createResponse();
+  let nextWasCalled = false;
+
+  securityHeaders(request, response, () => {
+    nextWasCalled = true;
+  });
+
+  assert.equal(nextWasCalled, true);
+  assert.equal(response.headers['X-Content-Type-Options'], 'nosniff');
+  assert.equal(response.headers['X-Frame-Options'], 'DENY');
+  assert.equal(response.headers['Referrer-Policy'], 'no-referrer');
+  assert.equal(response.headers['Cross-Origin-Resource-Policy'], undefined);
+});
+
+test('product files use a cross-origin compatible resource policy', () => {
+  const response = createResponse();
+  let nextWasCalled = false;
+
+  publicAssetHeaders(
+    createRequest({ originalUrl: '/product-file/product.png' }),
+    response,
+    () => {
+      nextWasCalled = true;
+    },
+  );
+
+  assert.equal(nextWasCalled, true);
+  assert.equal(
+    response.headers['Cross-Origin-Resource-Policy'],
+    'cross-origin',
+  );
+});
+
+test('category files use a cross-origin compatible resource policy', () => {
+  const response = createResponse();
+  let nextWasCalled = false;
+
+  publicAssetHeaders(
+    createRequest({ originalUrl: '/category-file/category.png' }),
+    response,
+    () => {
+      nextWasCalled = true;
+    },
+  );
+
+  assert.equal(nextWasCalled, true);
+  assert.equal(
+    response.headers['Cross-Origin-Resource-Policy'],
+    'cross-origin',
+  );
+});
+
+test('cors options accept allowed frontend origins', () => {
+  const options = buildCorsOptions(() => ['https://app.seven-bites.test']);
+  let callbackError;
+  let callbackAllowed;
+
+  options.origin('https://app.seven-bites.test', (error, allowed) => {
+    callbackError = error;
+    callbackAllowed = allowed;
+  });
+
+  assert.equal(callbackError, null);
+  assert.equal(callbackAllowed, true);
+});
+
+test('cors options reject unauthorized origins', () => {
+  const options = buildCorsOptions(() => ['https://app.seven-bites.test']);
+  let callbackError;
+  let callbackAllowed;
+
+  options.origin('https://evil.example', (error, allowed) => {
+    callbackError = error;
+    callbackAllowed = allowed;
+  });
+
+  assert.match(callbackError.message, /Origin is not allowed/);
+  assert.equal(callbackAllowed, undefined);
+});
+
+test('cors options accept requests without origin', () => {
+  const options = buildCorsOptions(() => ['https://app.seven-bites.test']);
+  let callbackError;
+  let callbackAllowed;
+
+  options.origin(undefined, (error, allowed) => {
+    callbackError = error;
+    callbackAllowed = allowed;
+  });
+
+  assert.equal(callbackError, null);
+  assert.equal(callbackAllowed, true);
+});
+
+test('openapi documents category multipart schema separately from product input', () => {
+  const schemas = openApiDocument.components.schemas;
+  const createCategorySchema =
+    openApiDocument.paths['/categories'].post.requestBody.content[
+      'multipart/form-data'
+    ].schema;
+
+  assert.equal(createCategorySchema.$ref, '#/components/schemas/CategoryInput');
+  assert.deepEqual(schemas.CategoryInput.required, ['name', 'file']);
+  assert.equal(schemas.CategoryInput.properties.name.type, 'string');
+  assert.equal(schemas.CategoryInput.properties.file.format, 'binary');
+  assert.equal(schemas.CategoryInput.properties.price, undefined);
+  assert.equal(schemas.ProductInput.properties.price.type, 'integer');
 });

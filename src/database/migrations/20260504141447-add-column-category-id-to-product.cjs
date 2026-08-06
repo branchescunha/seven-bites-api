@@ -1,20 +1,20 @@
-"use strict";
+'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn("products", "category_id", {
+    await queryInterface.addColumn('products', 'category_id', {
       type: Sequelize.INTEGER,
       references: {
-        model: "categories",
-        key: "id",
+        model: 'categories',
+        key: 'id',
       },
-      onUpdate: "CASCADE",
-      onDelete: "SET NULL",
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
     });
   },
 
   async down(queryInterface) {
-    await queryInterface.removeColumn("products", "category_id");
+    await queryInterface.removeColumn('products', 'category_id');
   },
 };
