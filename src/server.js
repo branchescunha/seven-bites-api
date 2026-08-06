@@ -1,6 +1,7 @@
-import app from "./app.js";
-import "./database/index.js";
+import app from './app.js';
+import './database/index.js';
+import { env } from './config/env.js';
 
-app.listen(3001, () => {
-  console.log("Application is running at port 3001");
+app.listen(env.port, () => {
+  console.log(`Application is running at port ${env.port}`);
 });

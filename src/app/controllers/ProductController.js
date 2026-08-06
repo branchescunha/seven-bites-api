@@ -1,6 +1,6 @@
-import * as Yup from "yup";
-import Product from "./../models/Product.js";
-import Category from "./../models/Category.js";
+import * as Yup from 'yup';
+import Category from './../models/Category.js';
+import Product from './../models/Product.js';
 
 class ProductController {
   async store(request, response) {
@@ -18,6 +18,11 @@ class ProductController {
     }
 
     const { name, price, category_id, offer } = request.body;
+
+    if (!request.file) {
+      return response.status(400).json({ error: 'Product image is required.' });
+    }
+
     const { filename } = request.file;
 
     const newProduct = await Product.create({
@@ -76,8 +81,8 @@ class ProductController {
     const products = await Product.findAll({
       include: {
         model: Category,
-        as: "category",
-        attributes: ["id", "name"],
+        as: 'category',
+        attributes: ['id', 'name'],
       },
     });
 

@@ -1,4 +1,5 @@
-import Sequelize, { Model } from "sequelize";
+import Sequelize, { Model } from 'sequelize';
+import { env } from '../../config/env.js';
 
 class Product extends Model {
   static init(sequelize) {
@@ -11,13 +12,13 @@ class Product extends Model {
         url: {
           type: Sequelize.VIRTUAL,
           get() {
-            return `http://localhost:3001/product-file/${this.path}`;
+            return `${env.appUrl}/product-file/${this.path}`;
           },
         },
       },
       {
         sequelize,
-        tableName: "products",
+        tableName: 'products',
       },
     );
 
@@ -26,8 +27,8 @@ class Product extends Model {
 
   static associate(models) {
     this.belongsTo(models.Category, {
-      foreignKey: "category_id",
-      as: "category",
+      foreignKey: 'category_id',
+      as: 'category',
     });
   }
 }

@@ -1,4 +1,5 @@
-import Sequelize, { Model } from "sequelize";
+import Sequelize, { Model } from 'sequelize';
+import { env } from '../../config/env.js';
 
 class Category extends Model {
   static init(sequelize) {
@@ -9,13 +10,13 @@ class Category extends Model {
         url: {
           type: Sequelize.VIRTUAL,
           get() {
-            return `http://localhost:3001/category-file/${this.path}`;
+            return `${env.appUrl}/category-file/${this.path}`;
           },
         },
       },
       {
         sequelize,
-        tableName: "categories",
+        tableName: 'categories',
       },
     );
 

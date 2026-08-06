@@ -1,22 +1,16 @@
-import Stripe from 'stripe';
 import * as Yup from 'yup';
-import 'dotenv/config';
+import { getStripeClient } from '../../../config/stripe.js';
+import Product from '../../models/Product.js';
+import {
+  assertAllProductsWereFound,
+  calculateProductsAmount,
+  normalizeCartProducts,
+} from '../../services/cartValidation.js';
 
-const getStripeClient = () => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    return null;
-  }
+const PAYMENT_GATEWAY_ERROR = 'Payment gateway is temporarily unavailable.';
 
-  return new Stripe(process.env.STRIPE_SECRET_KEY);
-};
-
-const calculateOrderAmount = (items) => {
-  const total = items.reduce((acc, current) => {
-    return current.price * current.quantity + acc;
-  }, 0);
-
-  return total;
-};
+export const sendStripeGatewayError = (response) =>
+  response.status(502).json({ error: PAYMENT_GATEWAY_ERROR });
 
 class CreatePaymentIntentController {
   async store(request, response) {
@@ -25,21 +19,42 @@ class CreatePaymentIntentController {
         .required()
         .of(
           Yup.object({
-            id: Yup.number().required(),
-            quantity: Yup.number().required(),
-            price: Yup.number().required(),
+            productId: Yup.number().integer().positive(),
+            id: Yup.number().integer().positive(),
+            quantity: Yup.number().integer().positive().required(),
           }),
         ),
     });
 
     try {
-      schema.validateSync(request.body, { abortEarly: false });
+      schema.validateSync(request.body, { abortEarly: false, strict: true });
     } catch (err) {
       return response.status(400).json({ error: err.errors });
     }
 
-    const { products } = request.body;
+    let products;
 
+    try {
+      products = normalizeCartProducts(request.body.products);
+    } catch (err) {
+      return response.status(err.statusCode).json({ error: err.message });
+    }
+
+    const productIds = products.map((product) => product.productId);
+
+    const foundProducts = await Product.findAll({
+      where: {
+        id: productIds,
+      },
+    });
+
+    try {
+      assertAllProductsWereFound(foundProducts, products);
+    } catch (err) {
+      return response.status(err.statusCode).json({ error: err.message });
+    }
+
+    const amount = calculateProductsAmount(foundProducts, products);
     const stripe = getStripeClient();
 
     if (!stripe) {
@@ -48,17 +63,25 @@ class CreatePaymentIntentController {
         .json({ error: 'Payment service is not configured.' });
     }
 
-    const amount = calculateOrderAmount(products);
+    let paymentIntent;
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'brl',
-      automatic_payment_methods: {
-        enabled: true,
-      },
-    });
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount,
+        currency: 'brl',
+        metadata: {
+          productCount: String(products.length),
+          userId: String(request.userId),
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+    } catch (_err) {
+      return sendStripeGatewayError(response);
+    }
 
-    response.json({
+    return response.json({
       clientSecret: paymentIntent.client_secret,
       dpmCheckerLink: `https://dashboard.stripe.com/settings/payment_methods/review?transaction_id=${paymentIntent.id}`,
     });

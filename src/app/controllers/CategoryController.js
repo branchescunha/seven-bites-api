@@ -1,5 +1,5 @@
-import * as Yup from "yup";
-import Category from "../models/Category.js";
+import * as Yup from 'yup';
+import Category from '../models/Category.js';
 
 class CategoryController {
   async store(request, response) {
@@ -14,6 +14,13 @@ class CategoryController {
     }
 
     const { name } = request.body;
+
+    if (!request.file) {
+      return response
+        .status(400)
+        .json({ error: 'Category image is required.' });
+    }
+
     const { filename } = request.file;
 
     const existingCategory = await Category.findOne({
@@ -21,7 +28,7 @@ class CategoryController {
     });
 
     if (existingCategory) {
-      return response.status(400).json({ error: "Category already exists!" });
+      return response.status(400).json({ error: 'Category already exists!' });
     }
 
     const newCategory = await Category.create({
@@ -57,7 +64,7 @@ class CategoryController {
     });
 
     if (existingCategory) {
-      return response.status(400).json({ error: "Category already exists!" });
+      return response.status(400).json({ error: 'Category already exists!' });
     }
 
     await Category.update(

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
 const OrderSchema = new mongoose.Schema(
   {
@@ -12,6 +12,10 @@ const OrderSchema = new mongoose.Schema(
         required: true,
       },
     },
+    paymentIntentId: {
+      type: String,
+      required: false,
+    },
     products: [
       {
         id: {
@@ -23,7 +27,7 @@ const OrderSchema = new mongoose.Schema(
           required: true,
         },
         price: {
-          type: String,
+          type: Number,
           required: true,
         },
         category: {
@@ -44,10 +48,26 @@ const OrderSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    totalAmount: {
+      type: Number,
+      required: false,
+    },
+    currency: {
+      type: String,
+      required: false,
+    },
   },
   {
     timestamps: true,
   },
 );
 
-export default mongoose.model("Order", OrderSchema);
+OrderSchema.index(
+  { paymentIntentId: 1 },
+  {
+    partialFilterExpression: { paymentIntentId: { $type: 'string' } },
+    unique: true,
+  },
+);
+
+export default mongoose.model('Order', OrderSchema);
