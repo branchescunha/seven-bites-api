@@ -26,3 +26,12 @@ Valores usados pela interface administrativa:
 - `Entregue`
 
 O backend ainda aceita o valor legado `Pedido realizado` e normaliza para `Pedido Realizado`.
+
+## Imagens
+
+Produtos e categorias retornam `url` pronta para consumo pelo frontend.
+
+- Em desenvolvimento local, `url` aponta para `/product-file/:filename` ou `/category-file/:filename`.
+- Em producao com Cloudinary, `url` e a URL HTTPS publica retornada pelo provider.
+
+O campo interno `path` pode conter filename legado ou URL Cloudinary. Clientes devem usar `url`.

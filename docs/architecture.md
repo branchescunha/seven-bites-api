@@ -4,6 +4,8 @@
 
 A API usa Express 5 com JavaScript ESM, Sequelize/PostgreSQL para usuarios, produtos e categorias, Mongoose/MongoDB para pedidos, JWT para autenticacao e Stripe para Payment Intents.
 
+Em producao, a arquitetura prevista usa Render para o web service, Neon para PostgreSQL, MongoDB Atlas para pedidos e Cloudinary para imagens.
+
 ## Camadas
 
 - `src/app.js`: configura middlewares globais, CORS, arquivos estaticos, rotas e tratamento de erros.
@@ -29,3 +31,13 @@ A API usa Express 5 com JavaScript ESM, Sequelize/PostgreSQL para usuarios, prod
 - `GET /docs`: pagina simples apontando para `GET /openapi.json`.
 - Cada resposta inclui `x-request-id`.
 - Erros 5xx sao logados com request ID, metodo, rota e status, sem body sensivel.
+
+## Producao
+
+- PostgreSQL aceita `DATABASE_URL` com SSL via `PG_SSL=true` ou `NODE_ENV=production`.
+- Desenvolvimento local continua aceitando `PG_HOST`, `PG_PORT`, `PG_USERNAME`, `PG_PASSWORD` e `PG_DATABASE`.
+- MongoDB usa `MONGO_URL`, incluindo connection strings SRV do Atlas.
+- Novos uploads usam Cloudinary quando `CLOUDINARY_URL` esta configurada.
+- Registros legados com filename local continuam servidos por `/product-file` e `/category-file`.
+- `TRUST_PROXY=1` deve ser usado no Render para preservar IP correto atras do proxy.
+- Rate limit em memoria e aceitavel para uma unica instancia inicial; multiplas instancias exigem store distribuida.

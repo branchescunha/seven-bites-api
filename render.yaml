@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: seven-bites-api
+    runtime: node
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: PG_SSL
+        value: "true"
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: TRUST_PROXY
+        value: "1"
+      - key: RATE_LIMIT_AUTH_MAX
+        value: "20"
+      - key: RATE_LIMIT_PAYMENT_MAX
+        value: "60"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"

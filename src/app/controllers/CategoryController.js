@@ -1,5 +1,6 @@
 import * as Yup from 'yup';
 import Category from '../models/Category.js';
+import { saveMediaFile } from '../services/mediaStorage.js';
 
 class CategoryController {
   async store(request, response) {
@@ -21,8 +22,6 @@ class CategoryController {
         .json({ error: 'Category image is required.' });
     }
 
-    const { filename } = request.file;
-
     const existingCategory = await Category.findOne({
       where: { name },
     });
@@ -31,9 +30,11 @@ class CategoryController {
       return response.status(400).json({ error: 'Category already exists!' });
     }
 
+    const path = await saveMediaFile(request.file, 'categories');
+
     const newCategory = await Category.create({
       name,
-      path: filename,
+      path,
     });
 
     return response.status(201).json(newCategory);
@@ -55,8 +56,7 @@ class CategoryController {
 
     let path;
     if (request.file) {
-      const { filename } = request.file;
-      path = filename;
+      path = await saveMediaFile(request.file, 'categories');
     }
 
     const existingCategory = await Category.findOne({

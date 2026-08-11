@@ -1,6 +1,7 @@
 import * as Yup from 'yup';
 import Category from './../models/Category.js';
 import Product from './../models/Product.js';
+import { saveMediaFile } from './../services/mediaStorage.js';
 
 class ProductController {
   async store(request, response) {
@@ -23,13 +24,13 @@ class ProductController {
       return response.status(400).json({ error: 'Product image is required.' });
     }
 
-    const { filename } = request.file;
+    const path = await saveMediaFile(request.file, 'products');
 
     const newProduct = await Product.create({
       name,
       price,
       category_id,
-      path: filename,
+      path,
       offer,
     });
 
@@ -55,8 +56,7 @@ class ProductController {
 
     let path;
     if (request.file) {
-      const { filename } = request.file;
-      path = filename;
+      path = await saveMediaFile(request.file, 'products');
     }
 
     await Product.update(

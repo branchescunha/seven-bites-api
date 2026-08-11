@@ -1,6 +1,7 @@
 const multer = require('multer');
 const { extname, resolve } = require('node:path');
 const { v4 } = require('uuid');
+require('dotenv').config();
 
 const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const allowedMimeTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -24,11 +25,15 @@ module.exports = {
 
     return callback(null, true);
   },
-  storage: multer.diskStorage({
-    destination: resolve(__dirname, '..', '..', 'uploads'),
-    filename: (_request, file, callback) => {
-      const uniqueName = v4().concat(extname(file.originalname).toLowerCase());
-      return callback(null, uniqueName);
-    },
-  }),
+  storage: process.env.CLOUDINARY_URL
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination: resolve(__dirname, '..', '..', 'uploads'),
+        filename: (_request, file, callback) => {
+          const uniqueName = v4().concat(
+            extname(file.originalname).toLowerCase(),
+          );
+          return callback(null, uniqueName);
+        },
+      }),
 };

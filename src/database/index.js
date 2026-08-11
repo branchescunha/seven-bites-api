@@ -15,7 +15,14 @@ class Database {
   }
 
   init() {
-    this.connection = new Sequelize(databaseConfig);
+    this.connection = databaseConfig.use_env_variable
+      ? new Sequelize(process.env[databaseConfig.use_env_variable], {
+          define: databaseConfig.define,
+          dialect: databaseConfig.dialect,
+          dialectOptions: databaseConfig.dialectOptions,
+        })
+      : new Sequelize(databaseConfig);
+
     models
       .map((model) => model.init(this.connection))
       .map(

@@ -11,6 +11,7 @@ import {
   publicAssetHeaders,
   securityHeaders,
 } from './app/middlewares/securityHeaders.js';
+import { env } from './config/env.js';
 import routes from './routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 class App {
   constructor() {
     this.app = express();
+
+    if (env.trustProxy) {
+      this.app.set('trust proxy', env.trustProxy);
+    }
 
     this.app.use(requestContext);
     this.app.use(securityHeaders);

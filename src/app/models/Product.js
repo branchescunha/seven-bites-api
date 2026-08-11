@@ -1,5 +1,5 @@
 import Sequelize, { Model } from 'sequelize';
-import { env } from '../../config/env.js';
+import { resolveMediaUrl } from '../services/mediaStorage.js';
 
 class Product extends Model {
   static init(sequelize) {
@@ -12,7 +12,7 @@ class Product extends Model {
         url: {
           type: Sequelize.VIRTUAL,
           get() {
-            return `${env.appUrl}/product-file/${this.path}`;
+            return resolveMediaUrl(this.path, 'product');
           },
         },
       },

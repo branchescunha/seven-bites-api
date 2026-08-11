@@ -25,6 +25,9 @@ const {
 const { buildHealthPayload, buildReadyPayload } = await import(
   '../src/app/services/health.js'
 );
+const { resolveMediaUrl, saveMediaFile } = await import(
+  '../src/app/services/mediaStorage.js'
+);
 const { assertPaymentIntentCanCreateOrder } = await import(
   '../src/app/services/paymentValidation.js'
 );
@@ -393,6 +396,29 @@ test('multer accepts only configured image types and size', () => {
       assert.equal(error.statusCode, 400);
     },
   );
+});
+
+test('media URLs keep Cloudinary URLs and resolve legacy local paths', () => {
+  assert.equal(
+    resolveMediaUrl(
+      'https://res.cloudinary.com/demo/image/upload/item.webp',
+      'product',
+    ),
+    'https://res.cloudinary.com/demo/image/upload/item.webp',
+  );
+  assert.equal(
+    resolveMediaUrl('local-product.png', 'product'),
+    'http://localhost:3001/product-file/local-product.png',
+  );
+});
+
+test('media storage keeps local filename when Cloudinary is not configured', async () => {
+  const storedPath = await saveMediaFile(
+    { filename: 'local-product.png' },
+    'products',
+  );
+
+  assert.equal(storedPath, 'local-product.png');
 });
 
 test('health payload exposes only safe process data', () => {
