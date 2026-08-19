@@ -6,6 +6,7 @@ export class CartValidationError extends Error {
 }
 
 export const MAX_ITEM_QUANTITY = 99;
+export const DELIVERY_TAX_AMOUNT = 500;
 
 const toPositiveInteger = (value) => {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
@@ -76,6 +77,9 @@ export const calculateProductsAmount = (dbProducts, cartProducts) => {
     return amount + product.price * quantitiesById.get(product.id);
   }, 0);
 };
+
+export const calculateOrderAmount = (dbProducts, cartProducts) =>
+  calculateProductsAmount(dbProducts, cartProducts) + DELIVERY_TAX_AMOUNT;
 
 export const assertAllProductsWereFound = (dbProducts, cartProducts) => {
   if (dbProducts.length !== cartProducts.length) {

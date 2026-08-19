@@ -5,7 +5,7 @@ import Product from '../models/Product.js';
 import Order from '../schemas/Order.js';
 import {
   assertAllProductsWereFound,
-  calculateProductsAmount,
+  calculateOrderAmount,
   normalizeCartProducts,
 } from '../services/cartValidation.js';
 import { assertPaymentIntentCanCreateOrder } from '../services/paymentValidation.js';
@@ -109,7 +109,7 @@ class OrderController {
       return response.status(err.statusCode).json({ error: err.message });
     }
 
-    const amount = calculateProductsAmount(foundProducts, products);
+    const amount = calculateOrderAmount(foundProducts, products);
     const stripe = getStripeClient();
 
     if (!stripe) {

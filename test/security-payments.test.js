@@ -17,14 +17,17 @@ const { default: authMiddleware } = await import(
 );
 const multerConfig = require('../src/config/multer.cjs');
 const {
+  DELIVERY_TAX_AMOUNT,
   MAX_ITEM_QUANTITY,
   assertAllProductsWereFound,
+  calculateOrderAmount,
   calculateProductsAmount,
   normalizeCartProducts,
 } = await import('../src/app/services/cartValidation.js');
 const { buildHealthPayload, buildReadyPayload } = await import(
   '../src/app/services/health.js'
 );
+const { env } = await import('../src/config/env.js');
 const { resolveMediaUrl, saveMediaFile } = await import(
   '../src/app/services/mediaStorage.js'
 );
@@ -156,6 +159,21 @@ test('cart amount is calculated from database prices', () => {
   );
 
   assert.equal(amount, 3200);
+});
+
+test('order amount includes the server-side delivery tax', () => {
+  const amount = calculateOrderAmount(
+    [
+      { id: 1, price: 1200 },
+      { id: 2, price: 800 },
+    ],
+    [
+      { productId: 1, quantity: 2 },
+      { productId: 2, quantity: 1 },
+    ],
+  );
+
+  assert.equal(amount, 3200 + DELIVERY_TAX_AMOUNT);
 });
 
 test('missing products are rejected', () => {
@@ -413,12 +431,20 @@ test('media URLs keep Cloudinary URLs and resolve legacy local paths', () => {
 });
 
 test('media storage keeps local filename when Cloudinary is not configured', async () => {
-  const storedPath = await saveMediaFile(
-    { filename: 'local-product.png' },
-    'products',
-  );
+  const originalCloudinaryUrl = env.cloudinaryUrl;
 
-  assert.equal(storedPath, 'local-product.png');
+  try {
+    env.cloudinaryUrl = undefined;
+
+    const storedPath = await saveMediaFile(
+      { filename: 'local-product.png' },
+      'products',
+    );
+
+    assert.equal(storedPath, 'local-product.png');
+  } finally {
+    env.cloudinaryUrl = originalCloudinaryUrl;
+  }
 });
 
 test('health payload exposes only safe process data', () => {
