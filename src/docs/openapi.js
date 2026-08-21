@@ -51,6 +51,12 @@ export const openApiDocument = {
           quantity: { type: 'integer', minimum: 1, maximum: 99 },
         },
       },
+      Message: {
+        type: 'object',
+        properties: {
+          message: { type: 'string' },
+        },
+      },
     },
   },
   paths: {
@@ -100,6 +106,68 @@ export const openApiDocument = {
         responses: {
           200: { description: 'Authenticated' },
           400: { description: 'Invalid credentials' },
+        },
+      },
+    },
+    '/password/forgot': {
+      post: {
+        summary: 'Request a password reset link',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['email'],
+                properties: {
+                  email: { type: 'string', format: 'email' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Neutral reset instructions response',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Message' },
+              },
+            },
+          },
+          429: { description: 'Too many requests' },
+        },
+      },
+    },
+    '/password/reset': {
+      post: {
+        summary: 'Reset password with a single-use token',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['token', 'newPassword'],
+                properties: {
+                  newPassword: { type: 'string', format: 'password' },
+                  token: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Password reset',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Message' },
+              },
+            },
+          },
+          400: { description: 'Invalid or expired token' },
+          429: { description: 'Too many requests' },
         },
       },
     },

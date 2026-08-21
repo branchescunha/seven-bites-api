@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
 process.env.APP_URL = 'http://localhost:3001';
@@ -9,6 +10,7 @@ process.env.MONGO_URL = 'mongodb://localhost:27017/seven-bites-test';
 
 const require = createRequire(import.meta.url);
 
+const databaseConfig = require('../src/config/database.cjs');
 const { default: adminMiddleware } = await import(
   '../src/app/middlewares/admin.js'
 );
@@ -27,6 +29,9 @@ const {
 const { buildHealthPayload, buildReadyPayload } = await import(
   '../src/app/services/health.js'
 );
+const { connectMongo } = await import(
+  '../src/app/services/databaseConnection.js'
+);
 const { env } = await import('../src/config/env.js');
 const { resolveMediaUrl, saveMediaFile } = await import(
   '../src/app/services/mediaStorage.js'
@@ -37,6 +42,13 @@ const { assertPaymentIntentCanCreateOrder } = await import(
 const { buildPublicUserPayload } = await import(
   '../src/app/services/userPayload.js'
 );
+const {
+  INVALID_PASSWORD_RESET_TOKEN_MESSAGE,
+  PASSWORD_RESET_REQUEST_MESSAGE,
+  PASSWORD_RESET_SUCCESS_MESSAGE,
+  requestPasswordReset,
+  resetPassword,
+} = await import('../src/app/services/passwordReset.js');
 const { handleOrderPersistenceError, sendPaymentIntentRetrieveError } =
   await import('../src/app/controllers/OrderController.js');
 const { sendStripeGatewayError } = await import(
@@ -87,6 +99,66 @@ const createRequest = (overrides = {}) => ({
   ...overrides,
 });
 
+const createPasswordResetTestStore = () => {
+  const users = [
+    {
+      admin: false,
+      email: 'client@example.com',
+      id: 'client-id',
+      name: 'Client',
+      password_hash: bcrypt.hashSync('old-secret', 10),
+      password_reset_expires_at: null,
+      password_reset_token_hash: null,
+    },
+  ];
+
+  const attachUpdate = (user) => ({
+    ...user,
+    async update(values) {
+      Object.assign(user, values);
+      Object.assign(this, values);
+      return this;
+    },
+  });
+
+  return {
+    findUser(email) {
+      return users.find((user) => user.email === email);
+    },
+    model: {
+      async findOne({ where }) {
+        if ('email' in where) {
+          const user = users.find((item) => item.email === where.email);
+          return user ? attachUpdate(user) : null;
+        }
+
+        if ('password_reset_token_hash' in where) {
+          const user = users.find((item) => {
+            const expiresAt = item.password_reset_expires_at;
+            const expiresAfter =
+              where.password_reset_expires_at?.gt ||
+              where.password_reset_expires_at?.[
+                Object.getOwnPropertySymbols(where.password_reset_expires_at)[0]
+              ];
+
+            return (
+              item.password_reset_token_hash ===
+                where.password_reset_token_hash &&
+              expiresAt &&
+              expiresAfter &&
+              expiresAt > expiresAfter
+            );
+          });
+
+          return user ? attachUpdate(user) : null;
+        }
+
+        return null;
+      },
+    },
+  };
+};
+
 test('public user payload always creates a non-admin user', () => {
   const payload = buildPublicUserPayload({
     admin: true,
@@ -107,6 +179,234 @@ test('duplicate user registration returns a clear conflict response', () => {
   assert.deepEqual(response.body, {
     error: 'Já existe uma conta com este e-mail. Entre para continuar.',
   });
+});
+
+test('forgot password with an existing user returns a neutral response', async () => {
+  const store = createPasswordResetTestStore();
+  const sentEmails = [];
+
+  const response = await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async (message) => {
+      sentEmails.push(message);
+    },
+    tokenGenerator: () => 'existing-user-reset-token',
+    userModel: store.model,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { message: PASSWORD_RESET_REQUEST_MESSAGE });
+  assert.equal(sentEmails.length, 1);
+});
+
+test('forgot password with a missing user returns the same neutral response', async () => {
+  const store = createPasswordResetTestStore();
+  const sentEmails = [];
+
+  const response = await requestPasswordReset({
+    email: 'missing@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async (message) => {
+      sentEmails.push(message);
+    },
+    tokenGenerator: () => 'missing-user-reset-token',
+    userModel: store.model,
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { message: PASSWORD_RESET_REQUEST_MESSAGE });
+  assert.equal(sentEmails.length, 0);
+});
+
+test('forgot password creates a hashed token with a short expiration', async () => {
+  const store = createPasswordResetTestStore();
+  const now = new Date('2026-08-21T12:00:00.000Z');
+
+  await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now,
+    sendEmail: async () => {},
+    tokenGenerator: () => 'plain-reset-token',
+    userModel: store.model,
+  });
+
+  const user = store.findUser('client@example.com');
+
+  assert.equal(
+    user.password_reset_token_hash.includes('plain-reset-token'),
+    false,
+  );
+  assert.equal(user.password_reset_token_hash.length, 64);
+  assert.equal(
+    user.password_reset_expires_at.toISOString(),
+    '2026-08-21T12:30:00.000Z',
+  );
+});
+
+test('invalid password reset token does not reset the password', async () => {
+  const store = createPasswordResetTestStore();
+  const beforeHash = store.findUser('client@example.com').password_hash;
+
+  const response = await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    token: 'invalid-token',
+    userModel: store.model,
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body, {
+    error: INVALID_PASSWORD_RESET_TOKEN_MESSAGE,
+  });
+  assert.equal(store.findUser('client@example.com').password_hash, beforeHash);
+});
+
+test('expired password reset token does not reset the password', async () => {
+  const store = createPasswordResetTestStore();
+  await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async () => {},
+    tokenGenerator: () => 'expired-token',
+    userModel: store.model,
+  });
+
+  const response = await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:31:00.000Z'),
+    token: 'expired-token',
+    userModel: store.model,
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body, {
+    error: INVALID_PASSWORD_RESET_TOKEN_MESSAGE,
+  });
+});
+
+test('valid password reset token updates the password and removes the token', async () => {
+  const store = createPasswordResetTestStore();
+  await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async () => {},
+    tokenGenerator: () => 'valid-token',
+    userModel: store.model,
+  });
+
+  const response = await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:10:00.000Z'),
+    token: 'valid-token',
+    userModel: store.model,
+  });
+
+  const user = store.findUser('client@example.com');
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { message: PASSWORD_RESET_SUCCESS_MESSAGE });
+  assert.equal(user.password_reset_token_hash, null);
+  assert.equal(user.password_reset_expires_at, null);
+  assert.equal(await bcrypt.compare('new-secret', user.password_hash), true);
+});
+
+test('password reset token cannot be reused after a successful reset', async () => {
+  const store = createPasswordResetTestStore();
+  await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async () => {},
+    tokenGenerator: () => 'single-use-token',
+    userModel: store.model,
+  });
+
+  await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:10:00.000Z'),
+    token: 'single-use-token',
+    userModel: store.model,
+  });
+
+  const response = await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'another-secret',
+    now: new Date('2026-08-21T12:11:00.000Z'),
+    token: 'single-use-token',
+    userModel: store.model,
+  });
+
+  assert.equal(response.statusCode, 400);
+  assert.deepEqual(response.body, {
+    error: INVALID_PASSWORD_RESET_TOKEN_MESSAGE,
+  });
+});
+
+test('new password authenticates and old password stops authenticating after reset', async () => {
+  const store = createPasswordResetTestStore();
+  const user = store.findUser('client@example.com');
+  const oldPasswordWorksBeforeReset = await bcrypt.compare(
+    'old-secret',
+    user.password_hash,
+  );
+
+  await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async () => {},
+    tokenGenerator: () => 'auth-token',
+    userModel: store.model,
+  });
+
+  await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:10:00.000Z'),
+    token: 'auth-token',
+    userModel: store.model,
+  });
+
+  assert.equal(oldPasswordWorksBeforeReset, true);
+  assert.equal(await bcrypt.compare('new-secret', user.password_hash), true);
+  assert.equal(await bcrypt.compare('old-secret', user.password_hash), false);
+});
+
+test('password hash never appears in password reset responses', async () => {
+  const store = createPasswordResetTestStore();
+  const requestResponse = await requestPasswordReset({
+    email: 'client@example.com',
+    frontendUrl: 'https://seven-bites.example',
+    now: new Date('2026-08-21T12:00:00.000Z'),
+    sendEmail: async () => {},
+    tokenGenerator: () => 'no-hash-token',
+    userModel: store.model,
+  });
+  const resetResponse = await resetPassword({
+    bcryptLib: bcrypt,
+    newPassword: 'new-secret',
+    now: new Date('2026-08-21T12:10:00.000Z'),
+    token: 'no-hash-token',
+    userModel: store.model,
+  });
+
+  assert.equal(
+    JSON.stringify(requestResponse.body).includes('password'),
+    false,
+  );
+  assert.equal(JSON.stringify(resetResponse.body).includes('password'), false);
+  assert.equal(JSON.stringify(requestResponse.body).includes('$2b$'), false);
+  assert.equal(JSON.stringify(resetResponse.body).includes('$2b$'), false);
 });
 
 test('auth middleware accepts a valid bearer token', () => {
@@ -482,6 +782,23 @@ test('readiness payload returns 200 only when dependencies are available', () =>
   assert.equal(ready.body.status, 'ready');
   assert.equal(unavailable.statusCode, 503);
   assert.equal(unavailable.body.status, 'unavailable');
+});
+
+test('mongo connection failures are captured without crashing startup', async () => {
+  const result = await connectMongo({
+    mongoUrl: 'mongodb://localhost:27017/unavailable',
+    mongooseClient: {
+      async connect() {
+        throw new Error('mongo unavailable');
+      },
+    },
+  });
+
+  assert.equal(result.status, 'unavailable');
+});
+
+test('database configuration disables SQL logging by default', () => {
+  assert.equal(databaseConfig.logging, false);
 });
 
 test('request context generates and returns a safe request id', () => {

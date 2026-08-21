@@ -3,6 +3,7 @@ import multer from 'multer';
 import CategoryController from './app/controllers/CategoryController.js';
 import HealthController from './app/controllers/HealthController.js';
 import OrderController from './app/controllers/OrderController.js';
+import PasswordResetController from './app/controllers/PasswordResetController.js';
 import ProductController from './app/controllers/ProductController.js';
 import SessionController from './app/controllers/SessionController.js';
 import CreatePaymentIntentController from './app/controllers/stripe/CreatePaymentIntentController.js';
@@ -51,6 +52,8 @@ routes.get('/docs', (_request, response) =>
 
 routes.post('/users', authRateLimit, UserController.store);
 routes.post('/sessions', authRateLimit, SessionController.store);
+routes.post('/password/forgot', authRateLimit, PasswordResetController.forgot);
+routes.post('/password/reset', authRateLimit, PasswordResetController.reset);
 
 routes.get('/products', ProductController.index);
 routes.get('/categories', CategoryController.index);

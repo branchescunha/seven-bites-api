@@ -3,6 +3,7 @@ import { Sequelize } from 'sequelize';
 import Category from '../app/models/Category.js';
 import Product from '../app/models/Product.js';
 import User from '../app/models/User.js';
+import { connectMongo } from '../app/services/databaseConnection.js';
 import databaseConfig from '../config/database.cjs';
 import { env } from '../config/env.js';
 
@@ -31,7 +32,10 @@ class Database {
   }
 
   mongo() {
-    this.mongooseConnection = mongoose.connect(env.mongoUrl);
+    this.mongooseConnection = connectMongo({
+      mongoUrl: env.mongoUrl,
+      mongooseClient: mongoose,
+    });
   }
 
   async checkConnections() {

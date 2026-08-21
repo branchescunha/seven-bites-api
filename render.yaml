@@ -12,6 +12,8 @@ services:
         sync: false
       - key: APP_ORIGIN
         sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: PG_SSL
@@ -25,6 +27,10 @@ services:
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: CLOUDINARY_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false
       - key: TRUST_PROXY
         value: "1"

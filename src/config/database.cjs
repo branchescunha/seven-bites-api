@@ -5,6 +5,7 @@ const define = {
   underscored: true,
   underscoredAll: true,
 };
+const logging = false;
 
 const shouldUseSsl =
   process.env.PG_SSL === 'true' ||
@@ -23,6 +24,7 @@ if (process.env.DATABASE_URL) {
     dialect: 'postgres',
     dialectOptions,
     define,
+    logging,
     use_env_variable: 'DATABASE_URL',
   };
 } else {
@@ -32,6 +34,7 @@ if (process.env.DATABASE_URL) {
     define,
     dialectOptions,
     host: process.env.PG_HOST,
+    logging,
     password: process.env.PG_PASSWORD,
     port: process.env.PG_PORT,
     username: process.env.PG_USERNAME,

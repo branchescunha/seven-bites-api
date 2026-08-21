@@ -33,6 +33,8 @@ export const env = {
   appUrl: process.env.APP_URL || `http://localhost:${process.env.PORT || 3001}`,
   cloudinaryUrl: process.env.CLOUDINARY_URL,
   databaseUrl: process.env.DATABASE_URL,
+  emailFrom: process.env.EMAIL_FROM,
+  frontendUrl: process.env.FRONTEND_URL || process.env.APP_ORIGIN,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   jwtSecret: getRequiredEnv('JWT_SECRET'),
   mongoUrl: getRequiredEnv('MONGO_URL'),
@@ -41,6 +43,7 @@ export const env = {
   rateLimitAuthMax: getNumberEnv('RATE_LIMIT_AUTH_MAX', 20),
   rateLimitPaymentMax: getNumberEnv('RATE_LIMIT_PAYMENT_MAX', 60),
   rateLimitWindowMs: getNumberEnv('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
+  resendApiKey: process.env.RESEND_API_KEY,
   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   trustProxy: getTrustProxyEnv(),
 };

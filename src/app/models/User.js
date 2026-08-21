@@ -7,6 +7,8 @@ class User extends Model {
         name: Sequelize.STRING,
         email: Sequelize.STRING,
         password_hash: Sequelize.STRING,
+        password_reset_expires_at: Sequelize.DATE,
+        password_reset_token_hash: Sequelize.STRING,
         admin: Sequelize.BOOLEAN,
       },
       {
