@@ -4,6 +4,12 @@ import * as Yup from 'yup';
 import User from '../models/User.js';
 import { buildPublicUserPayload } from '../services/userPayload.js';
 
+export const DUPLICATE_EMAIL_MESSAGE =
+  'Já existe uma conta com este e-mail. Entre para continuar.';
+
+export const sendDuplicateEmailResponse = (response) =>
+  response.status(409).json({ error: DUPLICATE_EMAIL_MESSAGE });
+
 class UserController {
   async store(request, response) {
     const schema = Yup.object({
@@ -22,7 +28,7 @@ class UserController {
 
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return response.status(400).json({ error: 'Email already taken!' });
+      return sendDuplicateEmailResponse(response);
     }
 
     const password_hash = await bcrypt.hash(password, 10);

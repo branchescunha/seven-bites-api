@@ -42,6 +42,9 @@ const { handleOrderPersistenceError, sendPaymentIntentRetrieveError } =
 const { sendStripeGatewayError } = await import(
   '../src/app/controllers/stripe/CreatePaymentIntentController.js'
 );
+const { sendDuplicateEmailResponse } = await import(
+  '../src/app/controllers/UserController.js'
+);
 const { buildCorsOptions } = await import(
   '../src/app/middlewares/corsOptions.js'
 );
@@ -93,6 +96,17 @@ test('public user payload always creates a non-admin user', () => {
   });
 
   assert.equal(payload.admin, false);
+});
+
+test('duplicate user registration returns a clear conflict response', () => {
+  const response = createResponse();
+
+  sendDuplicateEmailResponse(response);
+
+  assert.equal(response.statusCode, 409);
+  assert.deepEqual(response.body, {
+    error: 'Já existe uma conta com este e-mail. Entre para continuar.',
+  });
 });
 
 test('auth middleware accepts a valid bearer token', () => {
