@@ -4,6 +4,10 @@ Seven Bites API e o backend da plataforma Seven Bites, responsavel por autentica
 
 A API foi estruturada para sustentar uma experiencia comercial completa de restaurante: cliente monta o pedido no frontend, o servidor valida valores sensiveis, integra pagamento, registra pedidos e protege as operacoes administrativas.
 
+## Papel no produto
+
+Esta API sustenta as regras sensiveis do Seven Bites: autenticacao, autorizacao, catalogo, pedidos, pagamentos, midia e recuperacao de senha. O frontend consome esses contratos para manter a experiencia do cliente e do administrador sem duplicar regras financeiras ou permissoes no cliente.
+
 ## Responsabilidades
 
 - Cadastro e login de usuarios.
@@ -101,6 +105,10 @@ Endpoints publicos principais:
 - `GET /products`
 - `GET /docs`
 - `GET /openapi.json`
+
+## Repositorio relacionado
+
+- Frontend: https://github.com/branchescunha/seven-bites-interface
 
 ## Autor
 
