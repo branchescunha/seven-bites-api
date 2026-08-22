@@ -1,38 +1,38 @@
 # Seven Bites API
 
-API REST do Seven Bites, uma aplicação fullstack para catálogo, carrinho, checkout, pedidos e administração de uma hamburgueria.
+Seven Bites API e o backend da plataforma Seven Bites, responsavel por autenticacao, catalogo, pedidos, pagamentos, recuperacao de senha, midia e autorizacao administrativa.
 
-O backend centraliza autenticação, autorização administrativa, regras de pagamento, persistência relacional, persistência de pedidos e upload de imagens.
+A API foi estruturada para sustentar uma experiencia comercial completa de restaurante: cliente monta o pedido no frontend, o servidor valida valores sensiveis, integra pagamento, registra pedidos e protege as operacoes administrativas.
 
-## Funcionalidades
+## Responsabilidades
 
-- Cadastro e login de usuarios com JWT.
-- Bloqueio de criacao publica de administradores.
+- Cadastro e login de usuarios.
+- Autenticacao com JWT.
+- Recuperacao de senha por e-mail.
 - Controle de acesso administrativo.
-- CRUD de produtos e categorias.
-- Upload de imagens com validacao de tipo e tamanho.
-- Storage local em desenvolvimento e Cloudinary em producao.
-- Listagem publica de catalogo.
-- Criacao e gerenciamento de pedidos.
-- Payment Intents com Stripe Test Mode.
+- Listagem publica de categorias e produtos.
+- Criacao e edicao de produtos por administradores.
+- Upload e armazenamento de imagens.
+- Criacao e consulta de pedidos.
+- Atualizacao de status de pedidos.
+- Criacao de Payment Intents.
 - Validacao server-side de valores do carrinho.
-- Idempotencia por `paymentIntentId`.
-- Health check, readiness, request ID, CORS controlado e rate limit.
-- Contrato OpenAPI em `/openapi.json`.
+- Health check, readiness, CORS, rate limit e tratamento centralizado de erros.
 
-## Tecnologias utilizadas
+## Tecnologias
 
 - Node.js
 - Express
-- PostgreSQL
 - Sequelize
-- MongoDB
-- Mongoose
+- PostgreSQL / Neon
+- MongoDB / Mongoose
+- Stripe
+- Cloudinary
+- Resend
 - JWT
 - Bcrypt
 - Multer
-- Stripe
-- Cloudinary API
+- Yup
 - Biome
 - Node Test Runner
 
@@ -40,14 +40,7 @@ O backend centraliza autenticação, autorização administrativa, regras de pag
 
 ```txt
 seven-bites-api
-|-- .github
-|   |-- dependabot.yml
-|   `-- workflows
-|       `-- ci.yml
-|-- docs
-|   |-- api.md
-|   |-- architecture.md
-|   `-- development.md
+|-- scripts
 |-- src
 |   |-- app
 |   |   |-- controllers
@@ -62,39 +55,53 @@ seven-bites-api
 |   |-- routes.js
 |   `-- server.js
 |-- test
-|-- uploads
-|-- .env.example
 |-- package.json
 |-- pnpm-lock.yaml
-|-- render.yaml
-`-- README.md
+`-- render.yaml
 ```
+
+Controllers recebem as requisicoes e delegam regras reutilizaveis para services. Middlewares concentram autenticacao, autorizacao, CORS, rate limit, headers de seguranca, contexto de request e tratamento de erros. Models Sequelize representam usuarios, categorias e produtos; pedidos ficam em MongoDB.
 
 ## Seguranca
 
-- Segredos ficam em variaveis de ambiente.
-- `JWT_SECRET`, `STRIPE_SECRET_KEY`, `DATABASE_URL`, `MONGO_URL` e `CLOUDINARY_URL` nunca devem ser versionados.
-- CORS usa `APP_ORIGIN` por ambiente.
-- Rate limit protege login, cadastro e pagamento.
-- Upload aceita apenas JPEG, PNG e WebP ate 2 MB.
-- Logs nao devem registrar tokens, senhas, `clientSecret`, URIs de banco ou segredos de provedores.
-- Pagamentos reais exigem webhook e reconciliacao antes de ativar Stripe live.
+- Senhas armazenadas com hash.
+- JWT assinado por segredo de ambiente.
+- Criacao publica de administradores bloqueada.
+- Rotas administrativas protegidas por middleware dedicado.
+- Precos e totais recalculados no backend antes do pagamento.
+- Idempotencia de pedidos por identificador de pagamento.
+- Recuperacao de senha com token opaco, hash, expiracao curta e uso unico.
+- Rate limit em autenticacao e pagamento.
+- CORS controlado por origem configurada.
+- Segredos mantidos fora do repositorio.
 
-## API / documentacao
+## Integracoes
 
-Com a aplicacao em execucao:
+- Stripe para inicializacao e confirmacao do pagamento.
+- Cloudinary para armazenamento de imagens de produtos e categorias.
+- Resend para e-mails transacionais de recuperacao de senha.
+- Neon como PostgreSQL gerenciado.
+- MongoDB para persistencia de pedidos.
+
+## Testes
+
+A suite automatizada cobre autenticacao, recuperacao de senha, autorizacao, pagamento, validacao de carrinho, pedidos, upload/midia, CORS, rate limit, erros e configuracoes criticas.
+
+Validacao atual: 63 testes automatizados passando.
+
+## API em producao
+
+https://seven-bites-api.onrender.com
+
+Endpoints publicos principais:
 
 - `GET /health`
 - `GET /ready`
+- `GET /categories`
+- `GET /products`
 - `GET /docs`
 - `GET /openapi.json`
 
-Documentacao tecnica complementar:
-
-- `docs/architecture.md`
-- `docs/development.md`
-- `docs/api.md`
-
 ## Autor
 
-André Vinícius Branches Cunha
+Andre Vinicius Branches Cunha
